@@ -81,3 +81,69 @@ def auth_client(client):
     register(client)
     login(client)
     return client
+
+
+# --- helpers for state-changing calls, which all need the CSRF header ---
+
+
+def api_post(client, url, json=None):
+    return client.post(url, json=json, headers=csrf_headers(client))
+
+
+def api_patch(client, url, json=None):
+    return client.patch(url, json=json, headers=csrf_headers(client))
+
+
+def api_delete(client, url):
+    return client.delete(url, headers=csrf_headers(client))
+
+
+def signed_in(app, email):
+    """A fresh, logged-in client for a distinct user. Used by the IDOR suite."""
+    c = app.test_client()
+    register(c, email=email)
+    login(c, email=email)
+    return c
+
+
+def make_account(client, name="Checking", kind="checking") -> int:
+    resp = api_post(client, "/api/accounts", {"name": name, "kind": kind})
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()["id"]
+
+
+def make_transaction(client, account_id, amount_cents=-1250,
+                     description="Coffee", occurred_on="2026-08-10") -> int:
+    resp = api_post(
+        client,
+        f"/api/accounts/{account_id}/transactions",
+        {
+            "amount_cents": amount_cents,
+            "description": description,
+            "occurred_on": occurred_on,
+        },
+    )
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()["id"]
+
+
+@pytest.fixture
+def victim(app):
+    """Milton, with one account holding one transaction."""
+    c = signed_in(app, "milton@example.com")
+    account_id = make_account(c, "Milton Checking")
+    transaction_id = make_transaction(c, account_id, -4200, "Groceries")
+    return {"client": c, "account_id": account_id, "transaction_id": transaction_id}
+
+
+@pytest.fixture
+def attacker(app):
+    """A second, unrelated, fully legitimate user. Authenticated — just not you.
+
+    This is the realistic threat model for broken access control. The attacker
+    does not need a stolen session or an injection; they sign up normally and
+    then change a number in a URL.
+    """
+    c = signed_in(app, "attacker@example.com")
+    make_account(c, "Attacker Checking")
+    return c

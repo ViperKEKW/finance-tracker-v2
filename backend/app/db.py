@@ -40,6 +40,36 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- Supports "log this user out everywhere", which needs to find every session
 -- belonging to one user without scanning the table.
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+
+CREATE TABLE IF NOT EXISTS accounts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Ownership is a column, which is what lets every read filter on it. An
+    -- ownership rule that lives only in Python has to be remembered at every
+    -- call site; one that lives in the schema can be put in the WHERE clause.
+    user_id    INTEGER NOT NULL,
+    name       TEXT    NOT NULL,
+    kind       TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts (user_id);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id   INTEGER NOT NULL,
+    -- Money is stored as an INTEGER number of cents, never a float. Binary
+    -- floating point cannot represent 0.1 exactly, so 0.1 + 0.2 != 0.3 and a
+    -- ledger built on floats drifts. Integers are exact; the decimal point is
+    -- a display concern.
+    amount_cents INTEGER NOT NULL,
+    description  TEXT    NOT NULL,
+    occurred_on  TEXT    NOT NULL,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions (account_id);
 """
 
 

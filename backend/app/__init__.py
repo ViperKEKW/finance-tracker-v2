@@ -24,9 +24,11 @@ def create_app(config: dict | None = None) -> Flask:
     # exempt list in csrf.py rather than a forgotten decorator.
     app.before_request(csrf_protect)
 
+    from app.routes.accounts import bp as accounts_bp
     from app.routes.auth import bp as auth_bp
     from app.routes.health import bp as health_bp
 
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
+    app.register_blueprint(accounts_bp, url_prefix="/api")
     return app
