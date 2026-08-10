@@ -23,6 +23,23 @@ CREATE TABLE IF NOT EXISTS users (
 -- with an application-level check they can, because both can read "free"
 -- before either writes.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    -- The primary key is the HASH of the session token, never the token. A
+    -- read-only leak of this table therefore hands an attacker nothing they can
+    -- put in a cookie: they would have to invert SHA-256 to get the real value.
+    token_hash   TEXT    PRIMARY KEY,
+    user_id      INTEGER NOT NULL,
+    csrf_token   TEXT    NOT NULL,
+    created_at   TEXT    NOT NULL,
+    last_seen_at TEXT    NOT NULL,
+    expires_at   TEXT    NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+-- Supports "log this user out everywhere", which needs to find every session
+-- belonging to one user without scanning the table.
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 """
 
 

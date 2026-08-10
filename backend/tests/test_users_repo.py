@@ -9,30 +9,30 @@ from app.repositories.users import (
 from app.security.passwords import hash_password, verify_password
 
 
-def test_create_user_returns_an_id(app):
+def test_create_user_returns_an_id(app_ctx):
     assert create_user("milton@example.com", "hunter2") is not None
 
 
-def test_password_is_never_stored_in_plaintext(app):
+def test_password_is_never_stored_in_plaintext(app_ctx):
     create_user("milton@example.com", "hunter2")
     row = get_db().execute("SELECT password_hash FROM users").fetchone()
     assert row["password_hash"] != "hunter2"
     assert verify_password(row["password_hash"], "hunter2") is True
 
 
-def test_duplicate_email_returns_none_instead_of_raising(app):
+def test_duplicate_email_returns_none_instead_of_raising(app_ctx):
     create_user("milton@example.com", "hunter2")
     assert create_user("milton@example.com", "different") is None
 
 
-def test_duplicate_is_caught_case_and_whitespace_insensitively(app):
+def test_duplicate_is_caught_case_and_whitespace_insensitively(app_ctx):
     create_user("milton@example.com", "hunter2")
     # Normalizing before the uniqueness check is what stops two accounts that
     # differ only in capitalization from both existing.
     assert create_user("  MILTON@Example.COM  ", "hunter2") is None
 
 
-def test_lookup_matches_regardless_of_how_the_email_was_typed(app):
+def test_lookup_matches_regardless_of_how_the_email_was_typed(app_ctx):
     create_user("Milton@Example.com", "hunter2")
     assert get_user_by_email("milton@example.com") is not None
     assert get_user_by_email("  MILTON@EXAMPLE.COM ") is not None
@@ -42,13 +42,13 @@ def test_normalize_email_trims_and_lowercases():
     assert normalize_email("  Milton@Example.COM  ") == "milton@example.com"
 
 
-def test_get_user_by_id_does_not_expose_the_hash(app):
+def test_get_user_by_id_does_not_expose_the_hash(app_ctx):
     user_id = create_user("milton@example.com", "hunter2")
     row = get_user_by_id(user_id)
     assert "password_hash" not in row.keys()
 
 
-def test_update_password_hash_replaces_the_credential(app):
+def test_update_password_hash_replaces_the_credential(app_ctx):
     user_id = create_user("milton@example.com", "old-password")
     update_password_hash(user_id, hash_password("new-password"))
     row = get_user_by_email("milton@example.com")
@@ -59,7 +59,7 @@ def test_update_password_hash_replaces_the_credential(app):
 # --- injection: the parameterized-query control, proven rather than asserted ---
 
 
-def test_classic_or_true_payload_does_not_return_a_user(app):
+def test_classic_or_true_payload_does_not_return_a_user(app_ctx):
     create_user("milton@example.com", "hunter2")
     # Concatenated into the SQL text, this closes the quote and makes the WHERE
     # clause always true, returning the first user. Bound as a parameter it is
@@ -67,12 +67,12 @@ def test_classic_or_true_payload_does_not_return_a_user(app):
     assert get_user_by_email("' OR '1'='1") is None
 
 
-def test_comment_terminated_payload_does_not_return_a_user(app):
+def test_comment_terminated_payload_does_not_return_a_user(app_ctx):
     create_user("milton@example.com", "hunter2")
     assert get_user_by_email("milton@example.com' --") is None
 
 
-def test_stacked_drop_table_payload_leaves_the_table_intact(app):
+def test_stacked_drop_table_payload_leaves_the_table_intact(app_ctx):
     create_user("milton@example.com", "hunter2")
     get_user_by_email("x'; DROP TABLE users; --")
     # The real assertion is that the table survived: the payload was stored and
@@ -80,7 +80,7 @@ def test_stacked_drop_table_payload_leaves_the_table_intact(app):
     assert get_user_by_email("milton@example.com") is not None
 
 
-def test_payload_can_be_registered_as_a_literal_email(app):
+def test_payload_can_be_registered_as_a_literal_email(app_ctx):
     # The flip side of the same control. A parameterized query is not filtering
     # or escaping these characters, it is refusing to interpret them at all, so
     # the payload round-trips byte for byte.
